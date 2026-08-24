@@ -1,63 +1,34 @@
 const express = require('express');
-const fs = require('fs');
-const readline = require('readline');
 const cors = require('cors');
+const fs = require('fs');
+const csv = require('csv-parser');
+const { exec } = require('child_process');
 
 const app = express();
-const PORT = 5000;
-
 app.use(cors());
 
-let data = [];
+const PORT = 5000;
 
-// Read and parse CSV manually line by line
-const rl = readline.createInterface({
-  input: fs.createReadStream('./predicted_results_lgbm.csv'),
-  crlfDelay: Infinity
+// Endpoint to generate risk report by calling Python script
+app.get('/generate-report/:id', (req, res) => {
+  const userId = req.params.id;
+
+  // Call Python script
+  exec(`python plot_script.py ${userId}`, (error, stdout, stderr) => {
+    if (error) {
+      console.error(`Error: ${error.message}`);
+      return res.status(500).json({ status: 'Error generating report' });
+    }
+    if (stderr) {
+      console.error(`Stderr: ${stderr}`);
+    }
+
+    // Split output into lines
+    const lines = stdout.trim().split('\n').filter(line => line.trim() !== '');
+    res.json({ status: "Risk report generated", metrics: lines });
+  });
 });
 
-let isFirstLine = true;
-
-rl.on('line', (line) => {
-  if (isFirstLine) {
-    isFirstLine = false;
-    return; // Skip header
-  }
-
-  const cleaned = line.replace(/"/g, ''); // Remove quotes
-  const [UNIQUE_ID, TARGET, PREDICTED_TARGET] = cleaned.split(',');
-
-  if (UNIQUE_ID && TARGET && PREDICTED_TARGET) {
-    data.push({
-      UNIQUE_ID: UNIQUE_ID.trim(),
-      TARGET: TARGET.trim(),
-      PREDICTED_TARGET: PREDICTED_TARGET.trim()
-    });
-  }
-});
-
-rl.on('close', () => {
-  console.log('✅ CSV loaded. Records:', data.length);
-});
-
-// Root route
-app.get('/', (req, res) => {
-  res.send('✅ Backend running. Use /get-result/:id');
-});
-
-// Search by ID
-app.get('/get-result/:id', (req, res) => {
-  const id = req.params.id.trim();
-  const result = data.find(row => row.UNIQUE_ID === id);
-
-  if (result) {
-    res.json(result);
-  } else {
-    res.status(404).json({ message: 'ID not found' });
-  }
-});
-
-// Start server
 app.listen(PORT, () => {
-  console.log(`🚀 Server running at http://localhost:${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });

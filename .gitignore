@@ -1,2 +1,3 @@
 node_modules
 backend/predicted_results_lgbm.csv
+backend/fixed.csv
